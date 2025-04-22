@@ -28,12 +28,19 @@
                         </div>
 
                         <div class="mb-4">
-                            <label for="license_file" class="form-label">ملف الترخيص <span class="text-danger">*</span></label>
-                            <input type="file" class="form-control @error('license_file') is-invalid @enderror" id="license_file" name="license_file" required>
-                            @error('license_file')
+                            <label for="name" class="form-label">الاسم <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control @error('name') is-invalid @enderror" id="name" name="name" value="{{ old('name') }}" required>
+                            @error('name')
                                 <div class="invalid-feedback">{{ $message }}</div>
                             @enderror
-                            <div class="form-text text-muted">قم بتحميل ملف الترخيص (.dat) الذي استلمته من المطور</div>
+                        </div>
+
+                        <div class="mb-4">
+                            <label for="domain" class="form-label">الدومين <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control @error('domain') is-invalid @enderror" id="domain" name="domain" value="{{ old('domain') }}" required placeholder="example.com">
+                            @error('domain')
+                                <div class="invalid-feedback">{{ $message }}</div>
+                            @enderror
                         </div>
 
                         <div class="d-grid gap-2">

@@ -1,0 +1,36 @@
+{
+    "name": "tekpart/license",
+    "description": "نظام حماية الشفرة المصدرية وإدارة التراخيص للمشاريع المبنية على Laravel",
+    "type": "library",
+    "license": "MIT",
+    "authors": [
+        {
+            "name": "Tek-Part",
+            "email": "info@tekpart.com"
+        }
+    ],
+    "require": {
+        "php": "^7.4|^8.0",
+        "illuminate/support": "^8.0|^9.0|^10.0",
+        "illuminate/http": "^8.0|^9.0|^10.0",
+        "illuminate/database": "^8.0|^9.0|^10.0",
+        "phpseclib/phpseclib": "^3.0"
+    },
+    "autoload": {
+        "psr-4": {
+            "TekPart\\License\\": "src/"
+        }
+    },
+    "extra": {
+        "laravel": {
+            "providers": [
+                "TekPart\\License\\LicenseServiceProvider"
+            ],
+            "aliases": {
+                "TekLicense": "TekPart\\License\\Facades\\License"
+            }
+        }
+    },
+    "minimum-stability": "dev",
+    "prefer-stable": true
+}

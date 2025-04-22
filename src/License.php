@@ -7,25 +7,33 @@ use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\File;
 use phpseclib3\Crypt\RSA;
+use TekPart\License\Http\LicenseClient;
 
 class License
 {
     /**
-     * مفتاح الترخيص
+     * License key
      *
      * @var string
      */
     protected $licenseKey;
 
     /**
-     * عنوان URL الخاص بسيرفر التحقق من الترخيص
+     * Verification server URL
      *
      * @var string
      */
     protected $verificationServer;
 
     /**
-     * إنشاء كائن جديد.
+     * License client instance
+     *
+     * @var \TekPart\License\Http\LicenseClient
+     */
+    protected $client;
+
+    /**
+     * Create a new instance.
      *
      * @return void
      */
@@ -33,27 +41,28 @@ class License
     {
         $this->licenseKey = config('tekpart.license.key');
         $this->verificationServer = config('tekpart.license.verification_server');
+        $this->client = new LicenseClient();
     }
 
     /**
-     * التحقق من صلاحية الترخيص
+     * Verify license validity
      *
      * @return bool
      */
     public function verifyLicense()
     {
-        // إذا كانت عملية التحقق مخزنة في الكاش، استخدمها
+        // If verification result is cached, use it
         if (Cache::has('license_valid')) {
             return Cache::get('license_valid');
         }
 
-        // الحصول على معلومات النظام
+        // Get system info
         $systemInfo = $this->getSystemInfo();
 
-        // التحقق من الترخيص محليًا
+        // Verify license locally
         $localVerification = $this->verifyLocalLicense($systemInfo);
 
-        // التحقق من الترخيص عن بعد إذا كان ذلك مطلوبًا
+        // Verify license remotely if required
         $remoteVerification = true;
         if (config('tekpart.license.verify_remotely')) {
             $remoteVerification = $this->verifyRemoteLicense($systemInfo);
@@ -61,52 +70,52 @@ class License
 
         $isValid = $localVerification && $remoteVerification;
 
-        // تخزين النتيجة في الكاش لمدة يوم
+        // Cache the result for one day
         Cache::put('license_valid', $isValid, now()->addDay());
 
         return $isValid;
     }
 
     /**
-     * التحقق من الترخيص محليًا
+     * Verify license locally
      *
      * @param array $systemInfo
      * @return bool
      */
     protected function verifyLocalLicense($systemInfo)
     {
-        // التحقق من وجود ملف الترخيص
+        // Check if license file exists
         $licensePath = storage_path('app/license/license.dat');
         if (!File::exists($licensePath)) {
             return false;
         }
 
-        // قراءة ملف الترخيص
+        // Read license file
         $licenseData = File::get($licensePath);
 
-        // فك تشفير الترخيص
+        // Decrypt license
         $licenseData = $this->decryptLicense($licenseData);
         if (!$licenseData) {
             return false;
         }
 
-        // تحويل بيانات الترخيص إلى كائن PHP
+        // Convert license data to PHP object
         $license = json_decode($licenseData, true);
         if (!$license) {
             return false;
         }
 
-        // التحقق من صلاحية الترخيص
+        // Verify license validity
         if (!isset($license['domain']) || !isset($license['expiration'])) {
             return false;
         }
 
-        // التحقق من تاريخ انتهاء الصلاحية
+        // Verify expiration date
         if (strtotime($license['expiration']) < time()) {
             return false;
         }
 
-        // التحقق من النطاق
+        // Verify domain
         $currentDomain = $systemInfo['domain'];
         if ($license['domain'] !== '*' && $license['domain'] !== $currentDomain) {
             return false;
@@ -116,38 +125,25 @@ class License
     }
 
     /**
-     * التحقق من الترخيص على الخادم البعيد
+     * Verify license with remote server
      *
      * @param array $systemInfo
      * @return bool
      */
     protected function verifyRemoteLicense($systemInfo)
     {
-        try {
-            // إرسال طلب للتحقق من الترخيص
-            $response = Http::post($this->verificationServer . '/api/verify-license', [
-                'license_key' => $this->licenseKey,
-                'domain' => $systemInfo['domain'],
-                'ip' => $systemInfo['ip'],
-                'app_version' => $systemInfo['app_version'],
-            ]);
+        $response = $this->client->validate($this->licenseKey, $systemInfo);
 
-            if ($response->successful()) {
-                $result = $response->json();
-                return isset($result['valid']) && $result['valid'] === true;
-            }
-        } catch (\Exception $e) {
-            // في حالة وجود خطأ في الاتصال، نرجع إلى التحقق المحلي فقط
-            \Log::error('Remote license verification failed: ' . $e->getMessage());
+        if ($response && isset($response['valid'])) {
+            return $response['valid'] === true;
         }
 
-        // إذا لم نتمكن من الاتصال بالخادم، نعتبر أن التحقق عن بعد ناجح
-        // ونعتمد على التحقق المحلي فقط
+        // If we can't connect to the server, fallback to local verification only
         return true;
     }
 
     /**
-     * الحصول على معلومات النظام
+     * Get system information
      *
      * @return array
      */
@@ -163,7 +159,7 @@ class License
     }
 
     /**
-     * فك تشفير بيانات الترخيص
+     * Decrypt license data
      *
      * @param string $encryptedData
      * @return string|false
@@ -171,19 +167,19 @@ class License
     protected function decryptLicense($encryptedData)
     {
         try {
-            // استخدام المفتاح العام للتحقق من التوقيع
+            // Use public key to verify signature
             $publicKey = config('tekpart.license.public_key');
             if (!$publicKey) {
                 return false;
             }
 
-            // تهيئة RSA
+            // Initialize RSA
             $rsa = RSA::loadPublicKey($publicKey);
 
-            // فك التشفير
+            // Decrypt
             list($signature, $data) = explode('|', base64_decode($encryptedData), 2);
 
-            // التحقق من التوقيع
+            // Verify signature
             if ($rsa->verify($data, base64_decode($signature))) {
                 return $data;
             }
@@ -196,36 +192,36 @@ class License
     }
 
     /**
-     * إنشاء ترخيص جديد
+     * Generate a new license
      *
      * @param array $licenseData
      * @return string
      */
     public function generateLicense($licenseData)
     {
-        // التأكد من وجود المفتاح الخاص
+        // Ensure private key exists
         $privateKey = config('tekpart.license.private_key');
         if (!$privateKey) {
             throw new \Exception('Private key is missing');
         }
 
-        // تحويل بيانات الترخيص إلى JSON
+        // Convert license data to JSON
         $licenseJson = json_encode($licenseData);
 
-        // تهيئة RSA
+        // Initialize RSA
         $rsa = RSA::loadPrivateKey($privateKey);
 
-        // توقيع البيانات
+        // Sign data
         $signature = base64_encode($rsa->sign($licenseJson));
 
-        // دمج التوقيع مع البيانات وتشفيرها
+        // Combine signature with data and encrypt
         $encryptedData = base64_encode($signature . '|' . $licenseJson);
 
         return $encryptedData;
     }
 
     /**
-     * توليد زوج مفاتيح جديد للتشفير
+     * Generate a new key pair for encryption
      *
      * @return array
      */
@@ -240,7 +236,7 @@ class License
     }
 
     /**
-     * فك تشفير بيانات الترخيص (واجهة عامة)
+     * Decrypt license data (public interface)
      *
      * @param string $encryptedData
      * @return string|false
@@ -248,5 +244,93 @@ class License
     public function decrypt($encryptedData)
     {
         return $this->decryptLicense($encryptedData);
+    }
+
+    /**
+     * Activate a license key
+     *
+     * @param string $licenseKey
+     * @param array $data Additional data for activation
+     * @return array|null
+     */
+    public function activate($licenseKey = null, array $data = [])
+    {
+        $key = $licenseKey ?? $this->licenseKey;
+        $systemInfo = $this->getSystemInfo();
+
+        // Merge additional data with system info
+        $activationData = array_merge($systemInfo, $data);
+
+        return $this->client->activate($key, $activationData);
+    }
+
+    /**
+     * Deactivate a license key
+     *
+     * @param string $licenseKey
+     * @return array|null
+     */
+    public function deactivate($licenseKey = null)
+    {
+        $key = $licenseKey ?? $this->licenseKey;
+        $systemInfo = $this->getSystemInfo();
+
+        return $this->client->deactivate($key, $systemInfo);
+    }
+
+    /**
+     * Check license status
+     *
+     * @param string $licenseKey
+     * @return array|null
+     */
+    public function check($licenseKey = null)
+    {
+        $key = $licenseKey ?? $this->licenseKey;
+
+        return $this->client->check($key);
+    }
+
+    /**
+     * Generate a license token
+     *
+     * @param array $data
+     * @param string $licenseKey
+     * @return array|null
+     */
+    public function generateToken(array $data = [], $licenseKey = null)
+    {
+        $key = $licenseKey ?? $this->licenseKey;
+
+        return $this->client->generateToken($key, $data);
+    }
+
+    /**
+     * Verify a license token
+     *
+     * @param string $token
+     * @return array|null
+     */
+    public function verifyToken($token)
+    {
+        return $this->client->verifyToken($token);
+    }
+
+    /**
+     * Validate a license key
+     *
+     * @param string $licenseKey
+     * @param array $systemInfo
+     * @return array|null
+     */
+    public function validate($licenseKey = null, array $systemInfo = [])
+    {
+        $key = $licenseKey ?? $this->licenseKey;
+
+        if (empty($systemInfo)) {
+            $systemInfo = $this->getSystemInfo();
+        }
+
+        return $this->client->validate($key, $systemInfo);
     }
 }

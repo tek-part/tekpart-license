@@ -61,6 +61,7 @@ class LicenseServiceProvider extends ServiceProvider
 
         // تحميل المسارات
         $this->loadRoutesFrom(__DIR__.'/../routes/web.php');
+        $this->loadRoutesFrom(__DIR__.'/../routes/api.php');
 
         // تسجيل أوامر الـ console
         if ($this->app->runningInConsole()) {

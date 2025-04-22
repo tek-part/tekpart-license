@@ -77,6 +77,8 @@ class LicenseController extends Controller
     {
         $request->validate([
             'license_key' => 'required|string',
+            'name' => 'required|string',
+            'domain' => 'required|string',
             'license_file' => 'nullable|file',
         ]);
 
@@ -92,18 +94,16 @@ class LicenseController extends Controller
 
             // حفظ ملف الترخيص
             $file->move($licensePath, 'license.dat');
-
-            // تحديث مفتاح الترخيص في الإعدادات
-            $this->updateEnvFile('TEKPART_LICENSE_KEY', $request->license_key);
-
-            return redirect()->route('license.status')
-                ->with('message', 'تم تفعيل الترخيص بنجاح')
-                ->with('status', 'success');
         }
 
-        return redirect()->route('license.activate.form')
-            ->with('message', 'يرجى تحميل ملف الترخيص')
-            ->with('status', 'error');
+        // تحديث مفتاح الترخيص في الإعدادات
+        $this->updateEnvFile('TEKPART_LICENSE_KEY', $request->license_key);
+        $this->updateEnvFile('TEKPART_LICENSE_NAME', $request->name);
+        $this->updateEnvFile('TEKPART_LICENSE_DOMAIN', $request->domain);
+
+        return redirect()->route('license.status')
+            ->with('message', 'تم تفعيل الترخيص بنجاح')
+            ->with('status', 'success');
     }
 
     /**

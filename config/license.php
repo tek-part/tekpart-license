@@ -48,4 +48,19 @@ return [
         'path' => env('TEKPART_LICENSE_PATH', storage_path('app/license')),
         'name' => env('TEKPART_LICENSE_FILENAME', 'license.dat'),
     ],
+
+    // API Settings
+    'api' => [
+        'endpoints' => [
+            'validate' => '/api/license/validate',
+            'activate' => '/api/license/activate',
+            'deactivate' => '/api/license/deactivate',
+            'check' => '/api/license/check',
+            'token_generate' => '/api/license/token/generate',
+            'token_verify' => '/api/license/token/verify',
+        ],
+        'timeout' => env('TEKPART_API_TIMEOUT', 30),
+        'retry_attempts' => env('TEKPART_API_RETRY_ATTEMPTS', 3),
+        'retry_delay' => env('TEKPART_API_RETRY_DELAY', 1000), // milliseconds
+    ],
 ];

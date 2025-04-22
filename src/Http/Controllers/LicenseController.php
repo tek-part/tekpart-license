@@ -120,7 +120,7 @@ class LicenseController extends Controller
 
         try {
             $licenseData = File::get($licensePath);
-            $decryptedData = License::decryptLicense($licenseData);
+            $decryptedData = License::decrypt($licenseData);
 
             if ($decryptedData) {
                 return json_decode($decryptedData, true);

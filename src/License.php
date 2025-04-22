@@ -238,4 +238,15 @@ class License
             'public' => $rsa->getPublicKey()->toString('PKCS8'),
         ];
     }
+
+    /**
+     * فك تشفير بيانات الترخيص (واجهة عامة)
+     *
+     * @param string $encryptedData
+     * @return string|false
+     */
+    public function decrypt($encryptedData)
+    {
+        return $this->decryptLicense($encryptedData);
+    }
 }

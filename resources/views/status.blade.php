@@ -1,4 +1,4 @@
-@extends('layouts.app')
+@extends('teklicense::layouts.license')
 
 @section('title', 'حالة الترخيص')
 
